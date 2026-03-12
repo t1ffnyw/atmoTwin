@@ -16,7 +16,7 @@ from components.result_cards import (
     render_classification_card,
     render_false_positive_warnings,
 )
-from psg.service import generate_spectrum
+from psg.service import generate_spectrum, calculate_contributions
 from ui import configure_page
 
 
@@ -53,15 +53,22 @@ with col_controls:
     render_gas_sliders()
 
     st.divider()
-    run_clicked = st.button("🚀 Simulate", use_container_width=True, type="primary")
+    run_clicked = st.button("🚀 Simulate", width='stretch', type="primary")
 
 with col_display:
     if run_clicked:
-        with st.spinner("Generating spectrum via PSG..."):
+        with st.spinner("Generating spectrum and molecule contributions via PSG..."):
             try:
                 params = get_planet_params()
                 st.session_state.spectrum = generate_spectrum(params, output_type="rad")
-                # Placeholder classifier until ML pipeline is wired
+
+                w, y_base, contribs = calculate_contributions(params, output_type="rad")
+                st.session_state.contributions = {
+                    "wavelength": w,
+                    "baseline": y_base,
+                    "molecules": contribs,
+                }
+
                 st.session_state.classification = {
                     "label": "disequilibrium",
                     "confidence": 0.87,
@@ -84,7 +91,7 @@ with col_display:
         with tab_spec:
             show_bands = st.toggle("Highlight biosignature bands", value=True)
             fig = make_spectrum_figure(st.session_state.spectrum, show_bands)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         with tab_class:
             if st.session_state.classification:

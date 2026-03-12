@@ -1,31 +1,31 @@
 """
 Generate a spectrum from dashboard planet params (gases in ppmv) via PSG.
 """
+from typing import Dict, Tuple
+
+import numpy as np
+
 from . import CONFIG_PATH
 from .client import call_psg_api, modify_atmosphere
 
+MOLECULE_PARAM_MAP = [
+    ("O3", "o3_ppmv"),
+    ("CH4", "ch4_ppmv"),
+    ("CO2", "co2_ppmv"),
+    ("H2O", "h2o_ppmv"),
+    ("N2O", "n2o_ppmv"),
+    ("CO", "co_ppmv"),
+    ("O2", "o2_ppmv"),
+]
 
-def generate_spectrum(planet_params: dict, output_type: str = "rad") -> dict:
-    """
-    Build PSG config from dashboard planet params and return spectrum.
 
-    planet_params: dict from get_planet_params() with keys star_type, orbital_distance_au,
-                   surface_temp_k, surface_pressure_bar, gases (dict of ppmv values).
-    output_type: 'rad' for radiance (default), 'trn' for transmittance.
-
-    Returns:
-        {"wavelength": np.array (μm), "depth": np.array} — "depth" is flux/radiance or transmittance.
-    """
-    if not CONFIG_PATH.exists():
-        raise FileNotFoundError(f"PSG base config not found: {CONFIG_PATH}")
-
+def _gas_params(planet_params: dict) -> dict:
     gases = planet_params.get("gases", {})
 
     def ppmv(gas: str, default: float = 0.0) -> float:
         return float(gases.get(gas, default))
 
-    cfg_str = modify_atmosphere(
-        str(CONFIG_PATH),
+    return dict(
         o2_ppmv=ppmv("O2", 210000.0),
         ch4_ppmv=ppmv("CH4", 1.8),
         co2_ppmv=ppmv("CO2", 400.0),
@@ -36,5 +36,48 @@ def generate_spectrum(planet_params: dict, output_type: str = "rad") -> dict:
         n2_ppmv=ppmv("N2", 780000.0),
     )
 
+
+def generate_spectrum(planet_params: dict, output_type: str = "rad") -> dict:
+    if not CONFIG_PATH.exists():
+        raise FileNotFoundError(f"PSG base config not found: {CONFIG_PATH}")
+
+    cfg_str = modify_atmosphere(str(CONFIG_PATH), **_gas_params(planet_params))
     wavelength, flux = call_psg_api(cfg_str, output_type=output_type)
     return {"wavelength": wavelength, "depth": flux}
+
+
+def calculate_contributions(
+    planet_params: dict, output_type: str = "rad"
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, np.ndarray]]:
+    """
+    For each molecule, generate a spectrum with that molecule zeroed out,
+    then subtract from the baseline to get its contribution.
+
+    Returns (wavelength, baseline_flux, {molecule_name: contribution_array}).
+    """
+    if not CONFIG_PATH.exists():
+        raise FileNotFoundError(f"PSG base config not found: {CONFIG_PATH}")
+
+    base_kw = _gas_params(planet_params)
+    cfg_path = str(CONFIG_PATH)
+
+    baseline_cfg = modify_atmosphere(cfg_path, **base_kw)
+    w_base, y_base = call_psg_api(baseline_cfg, output_type=output_type)
+
+    contributions: Dict[str, np.ndarray] = {}
+    for mol_name, param_key in MOLECULE_PARAM_MAP:
+        if base_kw.get(param_key, 0.0) == 0.0:
+            contributions[mol_name] = np.zeros_like(y_base)
+            continue
+
+        without_kw = dict(base_kw)
+        without_kw[param_key] = 0.0
+        cfg_without = modify_atmosphere(cfg_path, **without_kw)
+        w_m, y_m = call_psg_api(cfg_without, output_type=output_type)
+
+        if len(w_m) != len(w_base) or not np.allclose(w_m, w_base, atol=0):
+            y_m = np.interp(w_base, w_m, y_m, left=np.nan, right=np.nan)
+
+        contributions[mol_name] = np.maximum(y_base - y_m, 0.0)
+
+    return w_base, y_base, contributions
