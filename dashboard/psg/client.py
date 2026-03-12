@@ -1,11 +1,14 @@
 """
 PSG API client: call NASA (or local) Planetary Spectrum Generator.
 
-Builds minimal configs from scratch so PSG computes the atmosphere from
-the provided abundances (no pre-baked layer profiles that would silently
-override the gas mixing ratios).
+Two config-building strategies:
+  - modify_atmosphere(): patches an existing base config file (richer
+    atmospheric model, used for display / graphing).
+  - make_config(): builds a minimal config from scratch matching the
+    format used by generate_training_data.py (used for the RF classifier).
 """
 import os
+from pathlib import Path
 
 import numpy as np
 import requests
@@ -16,6 +19,8 @@ PSG_URL = "http://localhost:3000/api.php" if USE_LOCAL_PSG else "https://psg.gsf
 GAS_ORDER = ["H2O", "CO2", "O3", "N2O", "CO", "CH4", "O2", "N2"]
 HITRAN_IDS = "HIT[1],HIT[2],HIT[3],HIT[4],HIT[5],HIT[6],HIT[7],HIT[22]"
 
+
+# ── Config for the RF classifier (from-scratch) ────────────────────────────────
 
 def make_config(
     *,
@@ -62,6 +67,53 @@ def make_config(
     )
 
 
+# ── Config for graphing (patch base config file) ───────────────────────────────
+
+def modify_atmosphere(
+    config_path: str,
+    *,
+    o2_ppmv: float,
+    ch4_ppmv: float,
+    co2_ppmv: float,
+    o3_ppmv: float,
+    n2o_ppmv: float = 0.0,
+    co_ppmv: float = 0.0,
+    h2o_ppmv: float = 0.0,
+    n2_ppmv: float = 0.0,
+) -> str:
+    """
+    Read a PSG config file and replace ATMOSPHERE-GAS, ATMOSPHERE-ABUN, ATMOSPHERE-UNIT
+    with the given mixing ratios (ppmv). Returns the modified config string.
+    """
+    config_text = Path(config_path).read_text(encoding="utf-8", errors="replace")
+
+    gases = ["H2O", "CO2", "O3", "N2O", "CO", "CH4", "O2", "N2"]
+    abun_ppmv = [h2o_ppmv, co2_ppmv, o3_ppmv, n2o_ppmv, co_ppmv, ch4_ppmv, o2_ppmv, n2_ppmv]
+    units = ["ppm"] * len(gases)
+
+    def _replace_line(text: str, tag: str, value: str) -> str:
+        needle = f"<{tag}>"
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith(needle):
+                lines[i] = f"{needle}{value}"
+                return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+        suffix = "" if text.endswith("\n") else "\n"
+        return text + suffix + f"{needle}{value}\n"
+
+    config_text = _replace_line(config_text, "ATMOSPHERE-GAS", ",".join(gases))
+    config_text = _replace_line(
+        config_text,
+        "ATMOSPHERE-ABUN",
+        ",".join(f"{v:g}" for v in abun_ppmv),
+    )
+    config_text = _replace_line(config_text, "ATMOSPHERE-UNIT", ",".join(units))
+
+    return config_text
+
+
+# ── PSG API call ────────────────────────────────────────────────────────────────
+
 def call_psg_api(config_input, output_type="rad"):
     """
     Call PSG API and return spectrum data.
@@ -79,7 +131,7 @@ def call_psg_api(config_input, output_type="rad"):
     else:
         config = str(config_input)
 
-    response = requests.post(PSG_URL, data={"file": config}, timeout=60)
+    response = requests.post(PSG_URL, data={"file": config, "type": output_type}, timeout=60)
 
     if response.status_code != 200:
         raise Exception(f"PSG API error: {response.status_code}")
