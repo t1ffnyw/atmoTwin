@@ -7,8 +7,9 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 
-from plot_spectrum import call_psg_api
+from plot_spectrum import PSG_URL, call_psg_api, modify_atmosphere_scl
 
+REF_CONFIG = Path(__file__).parent / "modern_earth_LIFE_cfg.txt"
 
 OUTPUT_CSV = "training_data.csv"
 CHECKPOINT_JSON = "training_checkpoint.json"
@@ -20,7 +21,8 @@ WAVELENGTH_MAX = 18.5
 WAVELENGTH_STEP = 0.05
 WAVELENGTH_GRID = np.arange(WAVELENGTH_MIN, WAVELENGTH_MAX + 1e-6, WAVELENGTH_STEP)
 
-TOTAL_PER_CLASS = 250
+#edit this to change the number of spectra per class
+TOTAL_PER_CLASS = 3
 
 
 @dataclass
@@ -52,53 +54,12 @@ def log_uniform_sample(low: float, high: float) -> float:
     return float(np.exp(np.random.uniform(log_low, log_high)))
 
 
-def build_psg_config(
-    n2: float,
-    o2: float,
-    h2o: float,
-    co2: float,
-    ch4: float,
-    co: float,
-    o3: float,
-    n2o: float,
-) -> str:
-    """
-    Build a PSG configuration string using the provided atmospheric abundances.
-    Follows the template given in the specification.
-    """
-    config = f"""<OBJECT>Exoplanet
-<OBJECT-NAME>Earth-like
-<OBJECT-DIAMETER>12742
-<OBJECT-STAR-TYPE>G
-<OBJECT-STAR-TEMPERATURE>5778
-<OBJECT-STAR-RADIUS>1.0
-<GEOMETRY>Observatory
-<GEOMETRY-OBS-ALTITUDE>10
-<GEOMETRY-ALTITUDE-UNIT>pc
-<ATMOSPHERE-STRUCTURE>Equilibrium
-<ATMOSPHERE-PRESSURE>1.0
-<ATMOSPHERE-PUNIT>bar
-<ATMOSPHERE-WEIGHT>28.97
-<ATMOSPHERE>N2,O2,H2O,CO2,CH4,CO,O3,N2O
-<ATMOSPHERE-NABNUNIT>ppmv
-<ATMOSPHERE-NGAS>8
-<ATMOSPHERE-GAS>N2,O2,H2O,CO2,CH4,CO,O3,N2O
-<ATMOSPHERE-ABUN>{n2:.6g},{o2:.6g},{h2o:.6g},{co2:.6g},{ch4:.6g},{co:.6g},{o3:.6g},{n2o:.6g}
-<ATMOSPHERE-UNIT>ppmv,ppmv,ppmv,ppmv,ppmv,ppmv,ppmv,ppmv
-<GENERATOR-RANGE1>{WAVELENGTH_MIN}
-<GENERATOR-RANGE2>{WAVELENGTH_MAX}
-<GENERATOR-RESOLUTION>100
-<GENERATOR-RESOLUTIONUNIT>RP
-<GENERATOR-GAS-MODEL>Y
-<GENERATOR-TRANS-APPLY>N
-<GENERATOR-RADUNITS>Wm2um
-"""
-    return config
+MAX_CONSECUTIVE_FAILURES = 20
 
 
-def call_psg_with_retries(config: str, max_retries: int = 3, delay_s: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
+def call_psg_with_retries(config: str, max_retries: int = 5, delay_s: float = 2.0) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Call PSG via the shared call_psg_api helper with retries and delay.
+    Call PSG via the shared call_psg_api helper with retries and exponential backoff.
     """
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
@@ -108,7 +69,7 @@ def call_psg_with_retries(config: str, max_retries: int = 3, delay_s: float = 1.
             return wavelength, flux
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
-            backoff = delay_s * attempt
+            backoff = delay_s * (2 ** attempt)
             print(f"PSG call failed (attempt {attempt}/{max_retries}): {exc}. Retrying in {backoff:.1f}s...")
             time.sleep(backoff)
     if last_exc is not None:
@@ -271,6 +232,7 @@ def generate_training_data(
         pd.DataFrame(columns=cols).to_csv(out_path, index=False)
 
     samples_since_save = 0
+    consecutive_failures: Dict[str, int] = {name: 0 for name in CLASS_SPECS}
 
     while any(counts[name] < TOTAL_PER_CLASS for name in CLASS_SPECS):
         for class_name, spec in CLASS_SPECS.items():
@@ -282,30 +244,43 @@ def generate_training_data(
             print(f"Generating spectrum {overall_idx}/{total_target} ({spec.pretty}, {idx_in_class}/{TOTAL_PER_CLASS})...")
 
             params = sample_parameters_for_class(class_name)
-            cfg = build_psg_config(
-                n2=params["N2"],
-                o2=params["O2"],
-                h2o=params["H2O"],
-                co2=params["CO2"],
-                ch4=params["CH4"],
-                co=params["CO"],
-                o3=params["O3"],
-                n2o=params["N2O"],
+            cfg = modify_atmosphere_scl(
+                str(REF_CONFIG),
+                o2_ppmv=params["O2"],
+                ch4_ppmv=params["CH4"],
+                co2_ppmv=params["CO2"],
+                o3_ppmv=params["O3"],
+                n2o_ppmv=params["N2O"],
+                co_ppmv=params["CO"],
+                h2o_ppmv=params["H2O"],
+                n2_ppmv=params["N2"],
             )
 
             try:
-                wavelength, flux = call_psg_with_retries(cfg, max_retries=max_retries, delay_s=1.0)
+                wavelength, flux = call_psg_with_retries(cfg, max_retries=max_retries, delay_s=2.0)
             except Exception as exc:  # noqa: BLE001
                 msg = f"[{class_name}] PSG error for sample {idx_in_class}: {exc}"
                 print(msg)
                 log_error(msg)
+                consecutive_failures[class_name] += 1
+                if consecutive_failures[class_name] >= MAX_CONSECUTIVE_FAILURES:
+                    raise RuntimeError(
+                        f"[{class_name}] Aborting after {MAX_CONSECUTIVE_FAILURES} consecutive failures."
+                    ) from exc
                 continue
 
             if not validate_spectrum(wavelength, flux):
                 msg = f"[{class_name}] Invalid spectrum for sample {idx_in_class}; skipping."
                 print(msg)
                 log_error(msg)
+                consecutive_failures[class_name] += 1
+                if consecutive_failures[class_name] >= MAX_CONSECUTIVE_FAILURES:
+                    raise RuntimeError(
+                        f"[{class_name}] Aborting after {MAX_CONSECUTIVE_FAILURES} consecutive invalid spectra."
+                    )
                 continue
+
+            consecutive_failures[class_name] = 0
 
             flux_grid = interpolate_to_grid(wavelength, flux)
 
@@ -333,29 +308,29 @@ def generate_training_data(
                 save_checkpoint(counts)
                 samples_since_save = 0
 
-            # Break out of the for-loop if we've reached the target overall
             if sum(counts.values()) >= total_target:
                 break
 
     save_checkpoint(counts)
+
+    # Shuffle rows so classes aren't grouped sequentially
+    df = pd.read_csv(out_path)
+    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+    df.to_csv(out_path, index=False)
+
     return counts
 
 
 def check_psg_running() -> bool:
     """Simple connectivity check using a minimal modern-Earth like atmosphere."""
-    print("Checking PSG connection at local instance via call_psg_api...")
+    print(f"Checking PSG connection at {PSG_URL} via call_psg_api...")
     try:
-        cfg = build_psg_config(
-            n2=780000.0,
-            o2=210000.0,
-            h2o=10000.0,
-            co2=400.0,
-            ch4=1.8,
-            co=0.1,
-            o3=0.3,
-            n2o=0.33,
+        cfg = modify_atmosphere_scl(
+            str(REF_CONFIG),
+            o2_ppmv=210000, ch4_ppmv=1.8, co2_ppmv=400, o3_ppmv=0.1,
+            n2o_ppmv=0.32, co_ppmv=0.1, h2o_ppmv=10000, n2_ppmv=780000,
         )
-        wavelength, flux = call_psg_with_retries(cfg, max_retries=1, delay_s=1.0)
+        wavelength, flux = call_psg_with_retries(cfg, max_retries=1, delay_s=2.0)
         print(
             "PSG connectivity check response: "
             f"{len(wavelength)} points from {wavelength.min():.3f}–{wavelength.max():.3f} µm, "
@@ -372,7 +347,7 @@ if __name__ == "__main__":
     np.random.seed(int(time.time()) % (2**32 - 1))
 
     if not check_psg_running():
-        raise SystemExit("PSG does not appear to be running or is misconfigured at http://localhost:3000/")
+        raise SystemExit(f"PSG does not appear to be running or is misconfigured at {PSG_URL}")
 
     start = time.time()
     final_counts = generate_training_data()

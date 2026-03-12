@@ -7,26 +7,16 @@ import tempfile
 from typing import Optional, Tuple, Dict
 
 
-USE_LOCAL_PSG = False
+USE_LOCAL_PSG = True
 PSG_URL = "http://localhost:3000/api.php" if USE_LOCAL_PSG else "https://psg.gsfc.nasa.gov/api.php"
+
+# Set True to print raw PSG response snippets/headers.
+DEBUG_PSG_RESPONSE = False
+
 
 def call_psg_api(config_input, output_type='rad'):
     """
     Call PSG API and return spectrum data.
-    
-    Parameters:
-    -----------
-    config_input : str
-        Either a path to a PSG configuration file or a configuration string
-    output_type : str
-        'rad' for radiance/emission, 'trn' for transmittance
-    
-    Returns:
-    --------
-    wavelength : numpy array
-        Wavelength in microns
-    spectrum : numpy array
-        Flux or transmittance values
     """
     # Read config from file path or use as direct string
     if isinstance(config_input, str) and os.path.exists(config_input):
@@ -38,12 +28,9 @@ def call_psg_api(config_input, output_type='rad'):
     # Send to PSG API
     response = requests.post(
         PSG_URL,
-        data={'file': config, 'type': output_type},
-        timeout=(10, 120),
+        data={'file': config, 'type': output_type}
     )
     
-    if response.status_code == 429:
-        raise Exception("PSG API rate limit exceeded (HTTP 429). Try increasing delay between calls.")
     if response.status_code != 200:
         raise Exception(f"PSG API error: {response.status_code}")
     
@@ -60,10 +47,12 @@ def call_psg_api(config_input, output_type='rad'):
         
         # Parse data columns
         parts = line.split()
-        if len(parts) >= 2:
+        if len(parts) >= 4:  # Need at least 4 columns
             try:
                 wavelengths.append(float(parts[0]))
-                flux.append(float(parts[1]))  # 'Total' column
+                # Column [3] is the planetary emission ("Earth-like")
+                # Column [1] is Total (star-dominated, doesn't change with atmosphere)
+                flux.append(float(parts[3]))  # <-- CHANGED FROM [1] TO [3]
             except ValueError:
                 continue
 
@@ -71,7 +60,6 @@ def call_psg_api(config_input, output_type='rad'):
         snippet = response.text[:800].replace("\r", "")
         raise Exception(
             "PSG API returned no numeric spectrum rows. "
-            "This is often a transient PSG error/throttle. "
             f"Response snippet:\n{snippet}"
         )
 
@@ -86,7 +74,6 @@ def create_base_config(
     h2o: float = 10000,
     n2o: float = 0.32,
     o3: float = 0.1,
-    n2: float = 780000,
     wavelength_min: float = 4.0,
     wavelength_max: float = 18.5,
     resolution: float = 50,
@@ -140,7 +127,7 @@ def create_base_config(
 <ATMOSPHERE-NGAS>8
 <ATMOSPHERE-GAS>H2O,CO2,O3,N2O,CO,CH4,O2,N2
 <ATMOSPHERE-TYPE>HIT[1],HIT[2],HIT[3],HIT[4],HIT[5],HIT[6],HIT[7],HIT[22]
-<ATMOSPHERE-ABUN>{h2o},{co2},{o3},{n2o},{co},{ch4},{o2},{n2}
+<ATMOSPHERE-ABUN>{h2o},{co2},{o3},{n2o},{co},{ch4},{o2},780000
 <ATMOSPHERE-UNIT>ppmv,ppmv,ppmv,ppmv,ppmv,ppmv,ppmv,ppmv
 <GENERATOR-RANGE1>{wavelength_min}
 <GENERATOR-RANGE2>{wavelength_max}
@@ -161,31 +148,6 @@ def create_base_config(
 """
     return config
 
-EARTH_DEFAULT_PPMV = {
-    "H2O": 10000.0,
-    "CO2": 400.0,
-    "O3": 0.1,
-    "N2O": 0.32,
-    "CO": 0.1,
-    "CH4": 1.8,
-    "O2": 209000.0,
-    "N2": 781000.0,
-}
-
-_GASES = ["H2O", "CO2", "O3", "N2O", "CO", "CH4", "O2", "N2"]
-
-
-def _replace_config_line(text: str, tag: str, value: str) -> str:
-    needle = f"<{tag}>"
-    lines = text.splitlines()
-    for i, line in enumerate(lines):
-        if line.startswith(needle):
-            lines[i] = f"{needle}{value}"
-            return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
-    suffix = "" if text.endswith("\n") else "\n"
-    return text + suffix + f"{needle}{value}\n"
-
-
 def modify_atmosphere(
     config_path: str,
     *,
@@ -199,51 +161,37 @@ def modify_atmosphere(
     n2_ppmv: float = 0.0,
 ) -> str:
     """
-    Read a PSG config file and replace ATMOSPHERE-GAS, ATMOSPHERE-ABUN,
-    ATMOSPHERE-UNIT using the provided mixing ratios (ppmv).
+    Read a PSG config file and replace:
+      - <ATMOSPHERE-GAS>
+      - <ATMOSPHERE-ABUN>
+      - <ATMOSPHERE-UNIT>
+    using the provided mixing ratios (ppmv).
     """
     config_text = Path(config_path).read_text(encoding="utf-8", errors="replace")
+
+    gases = ["H2O", "CO2", "O3", "N2O", "CO", "CH4", "O2", "N2"]
     abun_ppmv = [h2o_ppmv, co2_ppmv, o3_ppmv, n2o_ppmv, co_ppmv, ch4_ppmv, o2_ppmv, n2_ppmv]
+    units = ["ppm"] * len(gases)
 
-    config_text = _replace_config_line(config_text, "ATMOSPHERE-GAS", ",".join(_GASES))
-    config_text = _replace_config_line(
-        config_text, "ATMOSPHERE-ABUN", ",".join(f"{v:g}" for v in abun_ppmv),
+    def _replace_line(text: str, tag: str, value: str) -> str:
+        needle = f"<{tag}>"
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith(needle):
+                lines[i] = f"{needle}{value}"
+                return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+        # If not present, append at end (keeps file valid for PSG)
+        suffix = "" if text.endswith("\n") else "\n"
+        return text + suffix + f"{needle}{value}\n"
+
+    config_text = _replace_line(config_text, "ATMOSPHERE-GAS", ",".join(gases))
+    config_text = _replace_line(
+        config_text,
+        "ATMOSPHERE-ABUN",
+        ",".join(f"{v:g}" for v in abun_ppmv),
     )
-    config_text = _replace_config_line(config_text, "ATMOSPHERE-UNIT", ",".join(["ppm"] * 8))
-    return config_text
+    config_text = _replace_line(config_text, "ATMOSPHERE-UNIT", ",".join(units))
 
-
-def modify_atmosphere_scl(
-    config_path: str,
-    *,
-    o2_ppmv: float,
-    ch4_ppmv: float,
-    co2_ppmv: float,
-    o3_ppmv: float,
-    n2o_ppmv: float = 0.0,
-    co_ppmv: float = 0.0,
-    h2o_ppmv: float = 0.0,
-    n2_ppmv: float = 0.0,
-) -> str:
-    """
-    Read a PSG config file and replace ATMOSPHERE-GAS, ATMOSPHERE-ABUN,
-    ATMOSPHERE-UNIT using scale factors relative to Earth defaults.
-
-    Scale factors preserve the vertical distribution of each gas from the
-    layered config (e.g. O3 concentrated in the stratosphere) while changing
-    the total column amount. This produces more physically realistic spectra
-    than overriding with constant ppmv mixing ratios.
-    """
-    config_text = Path(config_path).read_text(encoding="utf-8", errors="replace")
-    desired = [h2o_ppmv, co2_ppmv, o3_ppmv, n2o_ppmv, co_ppmv, ch4_ppmv, o2_ppmv, n2_ppmv]
-    defaults = [EARTH_DEFAULT_PPMV[g] for g in _GASES]
-    scales = [d / df if df > 0 else 0.0 for d, df in zip(desired, defaults)]
-
-    config_text = _replace_config_line(config_text, "ATMOSPHERE-GAS", ",".join(_GASES))
-    config_text = _replace_config_line(
-        config_text, "ATMOSPHERE-ABUN", ",".join(f"{s:g}" for s in scales),
-    )
-    config_text = _replace_config_line(config_text, "ATMOSPHERE-UNIT", ",".join(["scl"] * 8))
     return config_text
 
 
@@ -378,10 +326,8 @@ def plot_spectrum(wavelength, flux, title="Earth Thermal Emission Spectrum"):
     ax.set_ylim(ymin, ymax * 1.15)
     ymin, ymax = ax.get_ylim()
 
-    #ax.set_ylim(ymin, 8.55e-5)
-   # ymin, ymax = ax.get_ylim()
+    label_heights = [0.98, 0.92, 0.98, 0.92, 0.98, 0.92]
 
-    label_heights = [0.86, 0.86, 0.86, 0.86, 0.86, 0.86]
     # Small, fixed horizontal offsets (in microns) to slightly separate nearby labels
     x_offsets = [-0.05, 0.05, -0.08, 0.08, -0.1, 0.1]
 
