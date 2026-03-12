@@ -3,25 +3,31 @@ from typing import Dict
 import numpy as np
 import plotly.graph_objects as go
 
+# ── LIFE mission color palette ──
+_BG = "#0B1120"
+_GRID = "rgba(0,180,216,0.15)"
+_TEXT = "#e2e8f0"
+_ACCENT = "#00b4d8"
+
 # Molecular markers for thermal emission spectrum: (wavelength μm, label, hex color)
 THERMAL_EMISSION_MARKERS = [
-    (4.3, "CO2", "#ef4444"),
-    (6.3, "H2O", "#3b82f6"),
-    (7.7, "CH4", "#f59e0b"),
-    (8.5, "N2O", "#22c55e"),
-    (9.6, "O3", "#8b5cf6"),
-    (15.0, "CO2", "#ef4444"),
+    (4.3, "CO₂", "#ff6b6b"),
+    (6.3, "H₂O", "#38bdf8"),
+    (7.7, "CH₄", "#fbbf24"),
+    (8.5, "N₂O", "#4ade80"),
+    (9.6, "O₃", "#a78bfa"),
+    (15.0, "CO₂", "#ff6b6b"),
 ]
 
 # Consistent molecule → color mapping for the contribution plot
 MOLECULE_COLORS = {
-    "O3": "#8b5cf6",
-    "CH4": "#f59e0b",
-    "CO2": "#ef4444",
-    "H2O": "#3b82f6",
-    "N2O": "#22c55e",
-    "CO": "#92400e",
-    "O2": "#ec4899",
+    "O3": "#a78bfa",
+    "CH4": "#fbbf24",
+    "CO2": "#ff6b6b",
+    "H2O": "#38bdf8",
+    "N2O": "#4ade80",
+    "CO": "#c084fc",
+    "O2": "#f472b6",
 }
 
 
@@ -37,13 +43,12 @@ def make_spectrum_figure(spectrum: dict, show_bands: bool = True) -> go.Figure:
 
     fig = go.Figure()
 
-    # Main spectrum trace — blue line
     fig.add_trace(
         go.Scatter(
             x=wl,
             y=depth,
             mode="lines",
-            line=dict(color="#2563eb", width=2),
+            line=dict(color=_ACCENT, width=2),
             name="Spectrum",
         )
     )
@@ -75,32 +80,32 @@ def make_spectrum_figure(spectrum: dict, show_bands: bool = True) -> go.Figure:
             xanchor="center",
             y=0.98,
             yanchor="top",
-            font=dict(size=18, color="#e2e8f0"),
+            font=dict(size=18, color=_TEXT),
         ),
         template="plotly_dark",
-        plot_bgcolor="#000000",
-        paper_bgcolor="#000000",
-        font=dict(color="#e2e8f0", size=12),
+        plot_bgcolor=_BG,
+        paper_bgcolor=_BG,
+        font=dict(color=_TEXT, size=12),
         xaxis=dict(
             title="Wavelength (μm)",
             range=[max(3.5, wl.min()), min(18.5, wl.max())],
             type="linear",
             showgrid=True,
-            gridcolor="rgba(255,255,255,0.25)",
+            gridcolor=_GRID,
             zeroline=False,
-            title_font=dict(color="#e2e8f0"),
-            tickfont=dict(color="#e2e8f0"),
+            title_font=dict(color=_TEXT),
+            tickfont=dict(color=_TEXT),
         ),
         yaxis=dict(
             title="Contrast (Planet/Star)",
             showgrid=True,
-            gridcolor="rgba(255,255,255,0.25)",
+            gridcolor=_GRID,
             zeroline=False,
             showticklabels=True,
             exponentformat="e",
             tickformat=".2e",
-            title_font=dict(color="#e2e8f0"),
-            tickfont=dict(color="#e2e8f0", size=11),
+            title_font=dict(color=_TEXT),
+            tickfont=dict(color=_TEXT, size=11),
             tickangle=0,
         ),
         height=520,
@@ -144,31 +149,31 @@ def make_contributions_figure(
             xanchor="center",
             y=0.98,
             yanchor="top",
-            font=dict(size=16, color="#e2e8f0"),
+            font=dict(size=16, color=_TEXT),
         ),
         template="plotly_dark",
-        plot_bgcolor="#000000",
-        paper_bgcolor="#000000",
-        font=dict(color="#e2e8f0", size=12),
+        plot_bgcolor=_BG,
+        paper_bgcolor=_BG,
+        font=dict(color=_TEXT, size=12),
         xaxis=dict(
             title="Wavelength (μm)",
             range=[max(3.5, wavelength.min()), min(18.5, wavelength.max())],
             showgrid=True,
-            gridcolor="rgba(255,255,255,0.25)",
+            gridcolor=_GRID,
             zeroline=False,
-            title_font=dict(color="#e2e8f0"),
-            tickfont=dict(color="#e2e8f0"),
+            title_font=dict(color=_TEXT),
+            tickfont=dict(color=_TEXT),
         ),
         yaxis=dict(
             title="Contribution (baseline − no molecule)",
             showgrid=True,
-            gridcolor="rgba(255,255,255,0.25)",
+            gridcolor=_GRID,
             zeroline=False,
             showticklabels=True,
             exponentformat="e",
             tickformat=".1e",
-            title_font=dict(color="#e2e8f0"),
-            tickfont=dict(color="#e2e8f0", size=11),
+            title_font=dict(color=_TEXT),
+            tickfont=dict(color=_TEXT, size=11),
         ),
         height=400,
         margin=dict(t=80, b=60, l=85, r=40),
@@ -178,7 +183,7 @@ def make_contributions_figure(
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(color="#e2e8f0", size=11),
+            font=dict(color=_TEXT, size=11),
         ),
         showlegend=True,
     )
