@@ -43,6 +43,12 @@ def load_preset(name: str) -> None:
     st.session_state.surface_temp_k = preset["surface_temp_k"]
     st.session_state.surface_pressure_bar = preset["surface_pressure_bar"]
     st.session_state.gases = dict(preset["gases"])
+
+    # Sync gas slider widget keys so the UI updates immediately after rerun.
+    # Streamlit widgets keep their own state by `key`, which can override `value=...`.
+    for gas_id, gas_value in st.session_state.gases.items():
+        st.session_state[f"slider_{gas_id}"] = float(gas_value)
+
     # clear stale results
     st.session_state.spectrum = None
     st.session_state.classification = None

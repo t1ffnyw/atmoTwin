@@ -1,18 +1,22 @@
-import numpy as np
+import sys
+from pathlib import Path
+
 import streamlit as st
+
+# Ensure dashboard root is on path so "psg" resolves when run via streamlit run dashboard/Home.py
+_dashboard_root = Path(__file__).resolve().parent.parent
+if str(_dashboard_root) not in sys.path:
+    sys.path.insert(0, str(_dashboard_root))
 
 from config import SCENARIO_PRESETS
 from state import init_state, get_planet_params, load_preset
-from components.planet_controls import (
-    render_star_selector,
-    render_orbital_params,
-    render_gas_sliders,
-)
+from components.planet_controls import render_gas_sliders
 from components.spectrum_plot import make_spectrum_figure
 from components.result_cards import (
     render_classification_card,
     render_false_positive_warnings,
 )
+from psg.service import generate_spectrum
 from ui import configure_page
 
 
@@ -27,24 +31,25 @@ st.caption(
 st.divider()
 
 # Sidebar: preset loader
+def _on_preset_change():
+    name = st.session_state.preset_selector
+    if name != "(custom)":
+        load_preset(name)
+
 with st.sidebar:
     st.header("Quick Start")
-    preset = st.selectbox(
-        "Load scenario preset", ["(custom)"] + list(SCENARIO_PRESETS.keys())
+    st.selectbox(
+        "Load scenario preset",
+        ["(custom)"] + list(SCENARIO_PRESETS.keys()),
+        key="preset_selector",
+        on_change=_on_preset_change,
     )
-    if preset != "(custom)":
-        load_preset(preset)
-        st.rerun()
 
 # Main layout: spectrum/planet on left, planet parameters on right
 col_display, col_controls = st.columns([2, 1])
 
 # Render controls first so run_clicked is defined before display block uses it
 with col_controls:
-    st.subheader("Planet Parameters")
-    render_star_selector()
-    render_orbital_params()
-    st.divider()
     render_gas_sliders()
 
     st.divider()
@@ -53,26 +58,24 @@ with col_controls:
 with col_display:
     if run_clicked:
         with st.spinner("Generating spectrum via PSG..."):
-            # PLACEHOLDER: replace with real PSG call
-            wl = np.linspace(0.5, 20, 2000)
-            depth = (
-                50
-                + 10 * np.sin(2 * np.pi * np.log(wl))
-                + np.random.normal(0, 1, len(wl))
-            )
-            st.session_state.spectrum = {"wavelength": wl, "depth": depth}
-
-            # PLACEHOLDER: replace with real classifier
-            st.session_state.classification = {
-                "label": "disequilibrium",
-                "confidence": 0.87,
-                "key_features": [
-                    ("O₂/CH₄ ratio", 0.42),
-                    ("CH₄ band depth (3.3μm)", 0.28),
-                    ("CO absence score", 0.18),
-                ],
-            }
-            st.session_state.false_positive_flags = []
+            try:
+                params = get_planet_params()
+                st.session_state.spectrum = generate_spectrum(params, output_type="rad")
+                # Placeholder classifier until ML pipeline is wired
+                st.session_state.classification = {
+                    "label": "disequilibrium",
+                    "confidence": 0.87,
+                    "key_features": [
+                        ("O₂/CH₄ ratio", 0.42),
+                        ("CH₄ band depth (3.3μm)", 0.28),
+                        ("CO absence score", 0.18),
+                    ],
+                }
+                st.session_state.false_positive_flags = []
+            except FileNotFoundError as e:
+                st.error(f"Configuration error: {e}")
+            except Exception as e:
+                st.error(f"PSG error: {e}")
 
     # Display results if available
     if st.session_state.spectrum:
