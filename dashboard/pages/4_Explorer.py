@@ -98,4 +98,4 @@ else:
         if st.session_state.get("comparison_result"):
             cmp = st.session_state.comparison_result
             fig = make_comparison_figure(cmp["wavelength"], cmp["fluxes"], cmp["labels"])
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")

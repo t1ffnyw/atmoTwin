@@ -4,4 +4,7 @@ numpy
 pandas
 pyyaml
 requests
+joblib
+scikit-learn
+matplotlib
 

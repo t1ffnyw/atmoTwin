@@ -42,24 +42,30 @@ def render_orbital_params() -> None:
 
 
 def render_gas_inputs() -> None:
-    """Render a number input for each gas (ppmv)."""
+    """Render a text input for each gas (ppmv)."""
     st.subheader("Atmospheric Composition (ppmv)")
     cols = st.columns(2)
     for i, (gas_id, info) in enumerate(GASES.items()):
         with cols[i % 2]:
-            step = info.get("step", 1.0)
             widget_key = f"input_{gas_id}"
             if widget_key not in st.session_state:
-                st.session_state[widget_key] = float(st.session_state.gases[gas_id])
-            st.number_input(
+                st.session_state[widget_key] = f"{float(st.session_state.gases[gas_id]):g}"
+            # plain text input to avoid +/- steppers
+            st.text_input(
                 info["label"],
-                min_value=float(info["range"][0]),
-                max_value=float(info["range"][1]),
-                step=step,
-                format="%.2g" if step < 1 else "%.0f",
                 key=widget_key,
             )
-    st.session_state.gases = {
-        gas_id: st.session_state[f"input_{gas_id}"] for gas_id in GASES
-    }
+
+    new_gases = {}
+    for gas_id in GASES:
+        raw = st.session_state.get(f"input_{gas_id}", "")
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            # fall back to previous value or config default
+            val = float(
+                st.session_state.gases.get(gas_id, GASES[gas_id]["default"])
+            )
+        new_gases[gas_id] = val
+    st.session_state.gases = new_gases
 

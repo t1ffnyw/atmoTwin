@@ -5,8 +5,11 @@ import streamlit as st
 
 # Ensure dashboard root is on path so "psg" resolves when run via streamlit run dashboard/Home.py
 _dashboard_root = Path(__file__).resolve().parent.parent
-if str(_dashboard_root) not in sys.path:
-    sys.path.insert(0, str(_dashboard_root))
+_project_root = _dashboard_root.parent
+
+for _p in (_dashboard_root, _project_root):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 from config import SCENARIO_PRESETS
 from state import init_state, get_planet_params, load_preset
@@ -15,6 +18,7 @@ from components.spectrum_plot import make_spectrum_figure
 from components.result_cards import (
     render_classification_card,
     render_false_positive_warnings,
+    render_upload_classification,
 )
 from psg.service import generate_spectrum, calculate_contributions
 from ui import configure_page
@@ -69,15 +73,14 @@ with col_display:
                     "molecules": contribs,
                 }
 
-                st.session_state.classification = {
-                    "label": "disequilibrium",
-                    "confidence": 0.87,
-                    "key_features": [
-                        ("O₂/CH₄ ratio", 0.42),
-                        ("CH₄ band depth (3.3μm)", 0.28),
-                        ("CO absence score", 0.18),
-                    ],
-                }
+                # Run AtmoTwin 4-class classifier on the simulated spectrum
+                from model.inference import predict
+
+                spec = st.session_state.spectrum
+                st.session_state.classification = predict(
+                    spec["wavelength"],
+                    spec["depth"],
+                )
                 st.session_state.false_positive_flags = []
             except FileNotFoundError as e:
                 st.error(f"Configuration error: {e}")
@@ -95,7 +98,8 @@ with col_display:
 
         with tab_class:
             if st.session_state.classification:
-                render_classification_card(st.session_state.classification)
+                # Show the full 4-class AtmoTwin results (same UI as upload tab)
+                render_upload_classification(st.session_state.classification)
                 st.divider()
                 render_false_positive_warnings(st.session_state.false_positive_flags)
     else:
