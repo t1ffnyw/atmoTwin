@@ -98,6 +98,8 @@ def _parse_builder_csv(uploaded) -> Dict[str, Any] | None:
         )
         return None
 
+    df.columns = expected_cols
+
     for col in expected_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
