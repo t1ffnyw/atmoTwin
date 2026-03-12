@@ -1,7 +1,7 @@
 """
 Generate a spectrum from dashboard planet params (gases in ppmv) via PSG.
 """
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -81,3 +81,35 @@ def calculate_contributions(
         contributions[mol_name] = np.maximum(y_base - y_m, 0.0)
 
     return w_base, y_base, contributions
+
+
+def generate_comparison_spectra(
+    scenarios: List[dict],
+    output_type: str = "rad",
+) -> Tuple[np.ndarray, List[np.ndarray]]:
+    """
+    Generate spectra for an arbitrary list of planet-param dicts and align
+    them to a common wavelength grid.
+
+    Returns (wavelength, [flux_array_per_scenario]).
+    """
+    if not CONFIG_PATH.exists():
+        raise FileNotFoundError(f"PSG base config not found: {CONFIG_PATH}")
+
+    cfg_path = str(CONFIG_PATH)
+    results: List[Tuple[np.ndarray, np.ndarray]] = []
+
+    for params in scenarios:
+        cfg_str = modify_atmosphere(cfg_path, **_gas_params(params))
+        w, y = call_psg_api(cfg_str, output_type=output_type)
+        results.append((w, y))
+
+    w_common = results[0][0]
+    aligned_fluxes: List[np.ndarray] = [results[0][1]]
+
+    for w_i, y_i in results[1:]:
+        if len(w_i) != len(w_common) or not np.allclose(w_i, w_common, atol=0):
+            y_i = np.interp(w_common, w_i, y_i, left=np.nan, right=np.nan)
+        aligned_fluxes.append(y_i)
+
+    return w_common, aligned_fluxes

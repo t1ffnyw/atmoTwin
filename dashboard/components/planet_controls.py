@@ -41,17 +41,17 @@ def render_orbital_params() -> None:
         )
 
 
-def render_gas_sliders() -> None:
-    """Render a slider for each gas (ppmv)."""
+def render_gas_inputs() -> None:
+    """Render a number input for each gas (ppmv)."""
     st.subheader("Atmospheric Composition (ppmv)")
     cols = st.columns(2)
     for i, (gas_id, info) in enumerate(GASES.items()):
         with cols[i % 2]:
             step = info.get("step", 1.0)
-            widget_key = f"slider_{gas_id}"
+            widget_key = f"input_{gas_id}"
             if widget_key not in st.session_state:
                 st.session_state[widget_key] = float(st.session_state.gases[gas_id])
-            st.slider(
+            st.number_input(
                 info["label"],
                 min_value=float(info["range"][0]),
                 max_value=float(info["range"][1]),
@@ -60,6 +60,6 @@ def render_gas_sliders() -> None:
                 key=widget_key,
             )
     st.session_state.gases = {
-        gas_id: st.session_state[f"slider_{gas_id}"] for gas_id in GASES
+        gas_id: st.session_state[f"input_{gas_id}"] for gas_id in GASES
     }
 

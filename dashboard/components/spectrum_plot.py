@@ -1,7 +1,8 @@
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # ── LIFE mission color palette ──
 _BG = "#0B1120"
@@ -187,6 +188,120 @@ def make_contributions_figure(
         ),
         showlegend=True,
     )
+
+    return fig
+
+
+_COMPARISON_COLORS = ["#00b4d8", "#f472b6", "#4ade80", "#fbbf24", "#a78bfa"]
+
+
+def make_comparison_figure(
+    wavelength: np.ndarray,
+    fluxes: List[np.ndarray],
+    labels: List[str],
+) -> go.Figure:
+    """
+    Two-panel Plotly figure: overlaid spectra on top, deviation (A − B) on bottom.
+    Supports exactly two scenarios.
+    """
+    color_a = _COMPARISON_COLORS[0]
+    color_b = _COMPARISON_COLORS[1]
+
+    deviation = fluxes[0] - fluxes[1]
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        row_heights=[0.6, 0.4],
+        subplot_titles=("Spectra Overlay", f"{labels[0]}  −  {labels[1]}"),
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=wavelength,
+            y=fluxes[0],
+            mode="lines",
+            line=dict(color=color_a, width=2),
+            name=labels[0],
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=wavelength,
+            y=fluxes[1],
+            mode="lines",
+            line=dict(color=color_b, width=2),
+            name=labels[1],
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=wavelength,
+            y=deviation,
+            mode="lines",
+            line=dict(color="#e2e8f0", width=1.5),
+            name="Deviation",
+            showlegend=False,
+        ),
+        row=2,
+        col=1,
+    )
+    fig.add_hline(y=0, line=dict(color="gray", width=0.8, dash="dot"), row=2, col=1)
+
+    wl_lo = max(3.5, float(wavelength.min()))
+    wl_hi = min(18.5, float(wavelength.max()))
+
+    shared_axis = dict(
+        showgrid=True,
+        gridcolor=_GRID,
+        zeroline=False,
+        title_font=dict(color=_TEXT),
+        tickfont=dict(color=_TEXT, size=11),
+    )
+    y_fmt = dict(
+        exponentformat="e",
+        tickformat=".2e",
+        showticklabels=True,
+    )
+
+    fig.update_xaxes(range=[wl_lo, wl_hi], **shared_axis, row=1, col=1)
+    fig.update_xaxes(
+        range=[wl_lo, wl_hi],
+        title_text="Wavelength (μm)",
+        **shared_axis,
+        row=2,
+        col=1,
+    )
+    fig.update_yaxes(title_text="Contrast (Planet/Star)", **shared_axis, **y_fmt, row=1, col=1)
+    fig.update_yaxes(title_text="Deviation", **shared_axis, **y_fmt, row=2, col=1)
+
+    fig.update_layout(
+        template="plotly_dark",
+        plot_bgcolor=_BG,
+        paper_bgcolor=_BG,
+        font=dict(color=_TEXT, size=12),
+        height=700,
+        margin=dict(t=60, b=60, l=85, r=40),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            font=dict(color=_TEXT, size=12),
+        ),
+        showlegend=True,
+    )
+
+    for ann in fig.layout.annotations:
+        ann.font = dict(color=_TEXT, size=14)
 
     return fig
 

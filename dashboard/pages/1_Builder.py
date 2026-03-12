@@ -10,7 +10,7 @@ if str(_dashboard_root) not in sys.path:
 
 from config import SCENARIO_PRESETS
 from state import init_state, get_planet_params, load_preset
-from components.planet_controls import render_gas_sliders
+from components.planet_controls import render_gas_inputs
 from components.spectrum_plot import make_spectrum_figure
 from components.result_cards import (
     render_classification_card,
@@ -50,10 +50,10 @@ col_display, col_controls = st.columns([2, 1])
 
 # Render controls first so run_clicked is defined before display block uses it
 with col_controls:
-    render_gas_sliders()
+    render_gas_inputs()
 
     st.divider()
-    run_clicked = st.button("🚀 Simulate", width='stretch', type="primary")
+    run_clicked = st.button("Simulate", width='stretch', type="primary")
 
 with col_display:
     if run_clicked:
