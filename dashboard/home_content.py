@@ -2,9 +2,10 @@ HERO_CONTENT = {
     "title": "AtmoTwin: Exoplanet Atmosphere Digital Twin",
     "tagline": "Build, simulate, and interpret Earth-like exoplanet atmospheres for biosignature detection.",
     "problem_statement": (
-        "Remote spectroscopy of exoplanets is photon-starved and model-dependent. "
-        "AtmoTwin gives you a controllable \"twin\" of an Earth-like atmosphere so you can explore "
-        "how different compositions, host stars, and orbital configurations shape the observable spectrum."
+    "We cannot directly observe life on distant worlds — but we can study the chemistry of their atmospheres. Atmospheric characterization of terrestrial exoplanets is one of the central goals of astrobiology: searching for signs of biological activity, assessing habitability, and exploring the diversity of planetary atmospheres across the galaxy."
+    "The LIFE (Large Interferometer For Exoplanets) mission concept proposes a space-based observatory operating in the mid-infrared to detect and investigate the thermal emission spectra of rocky exoplanets. This approach offers unique scientific potential for identifying biosignatures, evaluating habitability, and advancing comparative planetology."
+    "\n"
+    "\nAtmoTwin puts that science in your hands. Build an exoplanet atmosphere, simulate what LIFE would see, and let a machine-learning classifier tell you whether the signal points to a living world, a lifeless one, or a false positive."
     ),
     "baseline_scenario": "Modern Earth analog orbiting a G-type star at 1 AU.",
     "wavelength_range": "Near-IR to mid-IR transmission spectrum (4.0–18.3 μm).",

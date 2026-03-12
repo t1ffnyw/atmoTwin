@@ -16,7 +16,7 @@ def render_hero() -> None:
 
     st.divider()
 
-    col_left, col_right = st.columns([2, 2])
+    col_left, col_right = st.columns([3, 2])
 
     with col_left:
         st.subheader("Why AtmoTwin?")
@@ -24,7 +24,7 @@ def render_hero() -> None:
 
     with col_right:
         with st.container(border=True):
-            st.markdown("**Scenario summary**")
+            st.subheader("Scenario summary")
             st.markdown(
                 f"- **Baseline**: {HERO_CONTENT['baseline_scenario']}\n"
                 f"- **Wavelength range**: {HERO_CONTENT['wavelength_range']}\n"
@@ -76,7 +76,9 @@ def render_resources() -> None:
 
 def main() -> None:
     render_hero()
+    st.divider()
     render_workflow()
+    st.divider()
     render_resources()
 
 
