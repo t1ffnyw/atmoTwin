@@ -16,6 +16,10 @@ def init_state() -> None:
         "spectrum": None,  # dict: {"wavelength": [...], "depth": [...]}
         "classification": None,  # dict: {"label": str, "confidence": float, ...}
         "false_positive_flags": [],
+        # uploaded spectrum for builder/upload workflow
+        "uploaded_builder_spectrum": None,  # dict: {"wavelength": [...], "flux": [...], "error": [...]}
+        # track current preset name for UI labelling
+        "current_preset": "(custom)",
         # explorer: saved scenarios for comparison
         "saved_scenarios": [],
     }

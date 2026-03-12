@@ -2,35 +2,97 @@ import streamlit as st
 
 from state import init_state
 from ui import configure_page
+from home_content import HERO_CONTENT, WORKFLOW_STEPS, RESOURCES
 
 
 configure_page()
 init_state()
 
-st.title("Home")
-st.caption("Welcome to AtmoTwin — a digital twin for exploring exoplanet atmospheric chemistry and biosignature detectability.")
 
-st.divider()
+def render_hero() -> None:
+    """Hero section with problem statement and configurable summary block."""
+    st.title(HERO_CONTENT["title"])
+    st.caption(HERO_CONTENT["tagline"])
 
-st.subheader("What you can do here")
-st.markdown(
-    """
-- **Builder**: Configure host stars, orbits, and atmospheric compositions, then generate simulated spectra.
-- **Spectrum**: Inspect the transmission spectrum, with biosignature bands highlighted.
-- **Classifier**: View ML-based classifications of atmospheric disequilibrium and contributing features.
-- **Explorer**: Save and compare multiple scenarios or presets side by side.
-"""
-)
+    st.divider()
 
-st.subheader("Suggested workflow")
-st.markdown(
-    """
-1. Go to **Builder** and start with a preset or custom configuration.
-2. Click **Simulate** to generate a spectrum and classification.
-3. Use the **Spectrum** and **Classifier** pages to dive into the results.
-4. Save interesting cases in **Explorer** to compare different scenarios.
-"""
-)
+    col_left, col_right = st.columns([2, 2])
 
-st.info("Use the sidebar to switch between pages at any time.")
+    with col_left:
+        st.subheader("Why AtmoTwin?")
+        st.markdown(HERO_CONTENT["problem_statement"])
 
+    with col_right:
+        with st.container(border=True):
+            st.markdown("**Scenario summary**")
+            st.markdown(
+                f"- **Baseline**: {HERO_CONTENT['baseline_scenario']}\n"
+                f"- **Wavelength range**: {HERO_CONTENT['wavelength_range']}\n"
+                f"- **Primary application**: {HERO_CONTENT['primary_application']}"
+            )
+            st.caption("All text is configurable in `home_content.py`.")
+
+
+def render_workflow() -> None:
+    """Step-by-step workflow guide (Builder → Results → Explore)."""
+    st.subheader("How to use AtmoTwin")
+    st.markdown(
+        "Follow this suggested path to go from a physical scenario to interpretable spectra "
+        "and scenario comparison. You should be able to scan this in under 30 seconds."
+    )
+
+    cols = st.columns(len(WORKFLOW_STEPS))
+    for col, step in zip(cols, WORKFLOW_STEPS):
+        with col:
+            with st.container(border=True):
+                st.markdown(f"**{step['step_number']}. {step['label']}**")
+                st.caption(step["headline"])
+                st.write(step["summary"])
+
+                if step.get("page_path"):
+                    st.page_link(
+                        step["page_path"],
+                        label=step.get("cta_label", f"Go to {step['label']}"),
+                    )
+                if step.get("anchor"):
+                    st.markdown(
+                        f"[More detail](#{step['anchor']})",
+                        help="Scroll to the detailed description below.",
+                    )
+
+    st.markdown("")
+
+    for step in WORKFLOW_STEPS:
+        if step.get("anchor"):
+            st.markdown(f'<a name="{step["anchor"]}"></a>', unsafe_allow_html=True)
+        st.markdown(f"#### {step['step_number']}. {step['label']} — {step['headline']}")
+        st.markdown(step["detail"])
+        st.markdown("---")
+
+
+def render_resources() -> None:
+    """Footer-style resources and external links."""
+    st.subheader("Resources and links")
+
+    cols = st.columns(len(RESOURCES))
+    for col, item in zip(cols, RESOURCES):
+        with col:
+            with st.container(border=True):
+                icon = f"{item['emoji']} " if item.get("emoji") else ""
+                st.markdown(f"**{icon}{item['label']}**")
+                st.caption(item["description"])
+                st.markdown(f"[Open link]({item['url']})")
+
+    st.info(
+        "Use the sidebar to switch between pages at any time."
+    )
+
+
+def main() -> None:
+    render_hero()
+    render_workflow()
+    render_resources()
+
+
+if __name__ == "__main__":
+    main()
