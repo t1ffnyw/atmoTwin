@@ -173,6 +173,56 @@ def render_classification_card(result: dict) -> None:
             st.markdown(f"- `{feat_name}` — importance {importance:.2f}")
 
 
+_STRENGTH_BADGES = {
+    "strong": "\U0001f7e2 Strong",
+    "moderate": "\U0001f7e1 Moderate",
+    "weak": "\U0001f7e0 Weak",
+    "minimal": "\u26aa Minimal",
+}
+
+
+def render_molecule_explanations(contributing_molecules: list) -> None:
+    """Display per-molecule importance bars merged from RF importances and band depths."""
+    if not contributing_molecules:
+        st.info(
+            "No molecule contributions detected. This can happen when the "
+            "spectrum does not cover the model's wavelength range (4–18 µm)."
+        )
+        return
+
+    st.markdown("#### Molecule Contributions")
+    st.caption(
+        "Each bar combines the Random Forest feature importance (how much the "
+        "model relies on this wavelength region) with the measured absorption "
+        "depth in your spectrum. Molecules marked ★ are flagged as significant "
+        "(combined score > 1.5× the mean)."
+    )
+
+    for mol in contributing_molecules:
+        label = mol["molecule"]
+        center = mol["band_center"]
+        rel_imp = mol.get("relative_importance", 0.0)
+        strength = mol.get("strength", "minimal")
+        significant = mol.get("significant", False)
+        interpretation = mol.get("interpretation", "")
+        color = mol.get("color", "#94a3b8")
+
+        sig_marker = " ★" if significant else ""
+        badge = _STRENGTH_BADGES.get(strength, strength)
+
+        col_label, col_bar = st.columns([1, 2])
+        with col_label:
+            st.markdown(
+                f"<span style='color:{color}; font-weight:600'>{label}</span>"
+                f"<br><small>{center:.2f} µm &nbsp;·&nbsp; {badge}{sig_marker}</small>",
+                unsafe_allow_html=True,
+            )
+        with col_bar:
+            st.progress(max(0.0, min(rel_imp, 1.0)))
+            if interpretation:
+                st.caption(interpretation)
+
+
 def render_false_positive_warnings(flags: list[dict]) -> None:
     """
     flags: [{"type": "high_CO", "message": "...", "severity": "warning"|"critical"}, ...]

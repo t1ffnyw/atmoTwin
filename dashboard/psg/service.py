@@ -1,12 +1,14 @@
 """
 Generate a spectrum from dashboard planet params (gases in ppmv) via PSG.
+
+Uses make_config() to build clean configs from scratch (no pre-baked
+atmosphere layers) so PSG actually computes from the provided abundances.
 """
 from typing import Dict, List, Tuple
 
 import numpy as np
 
-from . import CONFIG_PATH
-from .client import call_psg_api, modify_atmosphere
+from .client import call_psg_api, make_config
 
 MOLECULE_PARAM_MAP = [
     ("O3", "o3_ppmv"),
@@ -38,10 +40,7 @@ def _gas_params(planet_params: dict) -> dict:
 
 
 def generate_spectrum(planet_params: dict, output_type: str = "rad") -> dict:
-    if not CONFIG_PATH.exists():
-        raise FileNotFoundError(f"PSG base config not found: {CONFIG_PATH}")
-
-    cfg_str = modify_atmosphere(str(CONFIG_PATH), **_gas_params(planet_params))
+    cfg_str = make_config(**_gas_params(planet_params))
     wavelength, flux = call_psg_api(cfg_str, output_type=output_type)
     return {"wavelength": wavelength, "depth": flux}
 
@@ -55,13 +54,9 @@ def calculate_contributions(
 
     Returns (wavelength, baseline_flux, {molecule_name: contribution_array}).
     """
-    if not CONFIG_PATH.exists():
-        raise FileNotFoundError(f"PSG base config not found: {CONFIG_PATH}")
-
     base_kw = _gas_params(planet_params)
-    cfg_path = str(CONFIG_PATH)
 
-    baseline_cfg = modify_atmosphere(cfg_path, **base_kw)
+    baseline_cfg = make_config(**base_kw)
     w_base, y_base = call_psg_api(baseline_cfg, output_type=output_type)
 
     contributions: Dict[str, np.ndarray] = {}
@@ -72,7 +67,7 @@ def calculate_contributions(
 
         without_kw = dict(base_kw)
         without_kw[param_key] = 0.0
-        cfg_without = modify_atmosphere(cfg_path, **without_kw)
+        cfg_without = make_config(**without_kw)
         w_m, y_m = call_psg_api(cfg_without, output_type=output_type)
 
         if len(w_m) != len(w_base) or not np.allclose(w_m, w_base, atol=0):
@@ -93,14 +88,10 @@ def generate_comparison_spectra(
 
     Returns (wavelength, [flux_array_per_scenario]).
     """
-    if not CONFIG_PATH.exists():
-        raise FileNotFoundError(f"PSG base config not found: {CONFIG_PATH}")
-
-    cfg_path = str(CONFIG_PATH)
     results: List[Tuple[np.ndarray, np.ndarray]] = []
 
     for params in scenarios:
-        cfg_str = modify_atmosphere(cfg_path, **_gas_params(params))
+        cfg_str = make_config(**_gas_params(params))
         w, y = call_psg_api(cfg_str, output_type=output_type)
         results.append((w, y))
 
