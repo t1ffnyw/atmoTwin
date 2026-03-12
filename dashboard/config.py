@@ -31,6 +31,7 @@ BIOSIG_BANDS = {
     "H₂O (6.3 μm)": {"center": 6.3, "width": 0.40, "gas": "H2O", "color": "#06b6d4"},
     "CO₂ (15 μm)": {"center": 15.0, "width": 1.00, "gas": "CO2", "color": "#f87171"},
     "N₂O (4.5 μm)": {"center": 4.5, "width": 0.20, "gas": "N2O", "color": "#a78bfa"},
+    "CO (4.67 μm)": {"center": 4.67, "width": 0.15, "gas": "CO", "color": "#1abc9c"},
 }
 
 # --- Scenario presets (gases in ppmv) ---

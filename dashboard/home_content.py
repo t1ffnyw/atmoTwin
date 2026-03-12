@@ -54,7 +54,7 @@ WORKFLOW_STEPS = [
             "changes in composition or stellar environment move you between biological, abiotic, and "
             "false-positive regimes."
         ),
-        "page_path": "pages/4_Explorer.py",
+        "page_path": "pages/3_Explorer.py",
         "cta_label": "Explore scenarios",
         "anchor": "explore-details",
     },

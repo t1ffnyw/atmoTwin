@@ -14,6 +14,7 @@ for _p in (_dashboard_root, _project_root):
 from components.result_cards import (
     render_classification_card,
     render_false_positive_warnings,
+    render_molecule_explanations,
     render_upload_classification,
 )
 from components.spectrum_plot import make_contributions_figure, make_spectrum_figure
@@ -108,6 +109,15 @@ with tab_class:
         if sim_class:
             st.subheader("Classification for simulated spectrum")
             render_upload_classification(sim_class)
+
+            contribs = st.session_state.get(
+                "contributing_molecules",
+                sim_class.get("contributing_molecules", []),
+            )
+            if contribs:
+                st.divider()
+                render_molecule_explanations(contribs)
+
             st.divider()
             render_false_positive_warnings(st.session_state.get("false_positive_flags", []))
 
@@ -117,18 +127,25 @@ with tab_class:
                 with st.spinner("Running Random Forest classifier on uploaded spectrum…"):
                     try:
                         from model.inference import predict
+                        from config import BIOSIG_BANDS
 
                         result = predict(
                             np.asarray(upload_spec["wavelength"]),
                             np.asarray(upload_spec["flux"]),
+                            biosig_bands=BIOSIG_BANDS,
                         )
                         st.session_state["_upload_classification"] = result
                     except Exception as exc:
                         st.error(f"Classification failed: {exc}")
                         st.session_state.pop("_upload_classification", None)
 
-            if st.session_state.get("_upload_classification"):
-                render_upload_classification(st.session_state["_upload_classification"])
+            upload_class = st.session_state.get("_upload_classification")
+            if upload_class:
+                render_upload_classification(upload_class)
+                upload_contribs = upload_class.get("contributing_molecules", [])
+                if upload_contribs:
+                    st.divider()
+                    render_molecule_explanations(upload_contribs)
 
     st.divider()
     st.markdown("#### How to interpret these classifications")

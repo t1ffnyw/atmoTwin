@@ -14,7 +14,7 @@ for _p in (_dashboard_root, _project_root):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from config import SCENARIO_PRESETS
+from config import BIOSIG_BANDS, SCENARIO_PRESETS
 from state import init_state, get_planet_params, load_preset
 from components.planet_controls import render_gas_inputs
 from components.spectrum_plot import make_spectrum_figure
@@ -160,6 +160,10 @@ with tab_composer:
                 st.session_state.classification = predict(
                     spec["wavelength"],
                     spec["depth"],
+                    biosig_bands=BIOSIG_BANDS,
+                )
+                st.session_state.contributing_molecules = (
+                    st.session_state.classification.get("contributing_molecules", [])
                 )
                 st.session_state.false_positive_flags = []
                 st.session_state.builder_source = "composition"
