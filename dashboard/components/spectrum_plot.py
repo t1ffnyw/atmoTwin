@@ -4,6 +4,8 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from config import BIOSIG_BANDS
+
 # ── LIFE mission color palette ──
 _BG = "#0B1120"
 _GRID = "rgba(0,180,216,0.15)"
@@ -199,6 +201,7 @@ def make_comparison_figure(
     wavelength: np.ndarray,
     fluxes: List[np.ndarray],
     labels: List[str],
+    show_biosig_bands: bool = True,
 ) -> go.Figure:
     """
     Two-panel Plotly figure: overlaid spectra on top, deviation (A − B) on bottom.
@@ -215,7 +218,7 @@ def make_comparison_figure(
         shared_xaxes=True,
         vertical_spacing=0.08,
         row_heights=[0.6, 0.4],
-        subplot_titles=("Spectra Overlay", f"{labels[0]}  −  {labels[1]}"),
+        subplot_titles=("", f"{labels[0]}  −  {labels[1]}"),
     )
 
     fig.add_trace(
@@ -282,17 +285,79 @@ def make_comparison_figure(
     fig.update_yaxes(title_text="Contrast (Planet/Star)", **shared_axis, **y_fmt, row=1, col=1)
     fig.update_yaxes(title_text="Deviation", **shared_axis, **y_fmt, row=2, col=1)
 
+    if show_biosig_bands:
+        visible_bands = []
+        for label, band in BIOSIG_BANDS.items():
+            center = float(band["center"])
+            width = float(band["width"])
+            color = band.get("color", "#ffffff")
+
+            x0 = center - width / 2.0
+            x1 = center + width / 2.0
+
+            if x1 < wl_lo or x0 > wl_hi:
+                continue
+
+            visible_bands.append((label, center, width, color))
+
+            x0_clipped = max(x0, wl_lo)
+            x1_clipped = min(x1, wl_hi)
+
+            fig.add_vrect(
+                x0=x0_clipped,
+                x1=x1_clipped,
+                line_width=0,
+                fillcolor=color,
+                opacity=0.18,
+                row=1,
+                col=1,
+                layer="below",
+            )
+
+        visible_bands.sort(key=lambda b: b[1])
+        min_gap = (wl_hi - wl_lo) * 0.06
+        y_offsets = [0, 14, 28]
+        prev_centers: list[tuple[float, int]] = []
+
+        for label, center, _width, color in visible_bands:
+            tier = 0
+            for prev_c, prev_tier in prev_centers:
+                if abs(center - prev_c) < min_gap and prev_tier == tier:
+                    tier += 1
+            tier = tier % len(y_offsets)
+            prev_centers.append((center, tier))
+
+            fig.add_annotation(
+                x=center,
+                y=1.0,
+                xref="x1",
+                yref="y domain",
+                yanchor="bottom",
+                yshift=4 + y_offsets[tier],
+                text=label,
+                showarrow=False,
+                font=dict(size=10, color=color),
+            )
+
     fig.update_layout(
         template="plotly_dark",
         plot_bgcolor=_BG,
         paper_bgcolor=_BG,
         font=dict(color=_TEXT, size=12),
-        height=700,
-        margin=dict(t=60, b=60, l=85, r=40),
+        height=750,
+        margin=dict(t=120, b=60, l=85, r=40),
+        title=dict(
+            text="Spectra Overlay",
+            x=0.5,
+            xanchor="center",
+            y=0.98,
+            yanchor="top",
+            font=dict(size=18, color=_TEXT),
+        ),
         legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=1.02,
+            yanchor="top",
+            y=1.09,
             xanchor="center",
             x=0.5,
             font=dict(color=_TEXT, size=12),

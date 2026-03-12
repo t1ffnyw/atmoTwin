@@ -65,14 +65,9 @@ with tab_spec:
             }
 
         st.subheader("Spectrum")
-        col_toggles = st.columns(2)
-        with col_toggles[0]:
-            show_bands = st.toggle("Highlight biosignature bands", value=True)
-        with col_toggles[1]:
-            log_y = st.toggle("Logarithmic y-axis", value=True)
+        show_bands = st.toggle("Highlight biosignature bands", value=True)
 
         fig = make_spectrum_figure(spectrum_dict, show_bands)
-        fig.update_yaxes(type="log" if log_y else "linear")
         st.plotly_chart(fig, width="stretch")
 
         if use_sim and st.session_state.get("contributions"):
@@ -84,7 +79,6 @@ with tab_spec:
             )
             c = st.session_state.contributions
             fig_c = make_contributions_figure(c["wavelength"], c["molecules"])
-            fig_c.update_yaxes(type="log" if log_y else "linear")
             st.plotly_chart(fig_c, width="stretch")
         elif not use_sim:
             st.info(

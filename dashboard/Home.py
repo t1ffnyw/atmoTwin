@@ -30,7 +30,7 @@ def render_hero() -> None:
                 f"- **Wavelength range**: {HERO_CONTENT['wavelength_range']}\n"
                 f"- **Primary application**: {HERO_CONTENT['primary_application']}"
             )
-            st.caption("All text is configurable in `home_content.py`.")
+            
 
 
 def render_workflow() -> None:
@@ -54,20 +54,6 @@ def render_workflow() -> None:
                         step["page_path"],
                         label=step.get("cta_label", f"Go to {step['label']}"),
                     )
-                if step.get("anchor"):
-                    st.markdown(
-                        f"[More detail](#{step['anchor']})",
-                        help="Scroll to the detailed description below.",
-                    )
-
-    st.markdown("")
-
-    for step in WORKFLOW_STEPS:
-        if step.get("anchor"):
-            st.markdown(f'<a name="{step["anchor"]}"></a>', unsafe_allow_html=True)
-        st.markdown(f"#### {step['step_number']}. {step['label']} — {step['headline']}")
-        st.markdown(step["detail"])
-        st.markdown("---")
 
 
 def render_resources() -> None:

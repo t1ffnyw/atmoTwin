@@ -97,5 +97,11 @@ else:
 
         if st.session_state.get("comparison_result"):
             cmp = st.session_state.comparison_result
-            fig = make_comparison_figure(cmp["wavelength"], cmp["fluxes"], cmp["labels"])
+            show_bands = st.toggle("Highlight biosignature bands", value=True)
+            fig = make_comparison_figure(
+                cmp["wavelength"],
+                cmp["fluxes"],
+                cmp["labels"],
+                show_biosig_bands=show_bands,
+            )
             st.plotly_chart(fig, width="stretch")

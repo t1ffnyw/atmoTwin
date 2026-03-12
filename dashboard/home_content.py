@@ -7,7 +7,7 @@ HERO_CONTENT = {
         "how different compositions, host stars, and orbital configurations shape the observable spectrum."
     ),
     "baseline_scenario": "Modern Earth analog orbiting a G-type star at 1 AU.",
-    "wavelength_range": "Near-IR to mid-IR transmission spectrum (≈0.6–20 μm).",
+    "wavelength_range": "Near-IR to mid-IR transmission spectrum (4.0–18.3 μm).",
     "primary_application": "Biosignature detection and atmospheric characterization from low-S/N spectra.",
 }
 
@@ -26,7 +26,6 @@ WORKFLOW_STEPS = [
         ),
         "page_path": "pages/1_Builder.py",
         "cta_label": "Open Builder",
-        "anchor": "builder-details",
     },
     {
         "id": "results",
@@ -41,7 +40,6 @@ WORKFLOW_STEPS = [
         ),
         "page_path": "pages/2_Results.py",
         "cta_label": "View results",
-        "anchor": "results-details",
     },
     {
         "id": "explore",
@@ -54,9 +52,8 @@ WORKFLOW_STEPS = [
             "changes in composition or stellar environment move you between biological, abiotic, and "
             "false-positive regimes."
         ),
-        "page_path": "pages/4_Explorer.py",
+        "page_path": "pages/3_Explorer.py",
         "cta_label": "Explore scenarios",
-        "anchor": "explore-details",
     },
 ]
 
@@ -67,19 +64,19 @@ RESOURCES = [
         "emoji": "💻",
         "description": "Source code, issues, and contribution guide.",
         # Replace this placeholder with your actual repository URL.
-        "url": "https://github.com/<your-org-or-user>/atmotwin",
+        "url": "https://github.com/t1ffnyw/atmoTwin",
     },
     {
         "label": "Documentation",
         "emoji": "📘",
         "description": "User guide, API docs, and examples.",
-        "url": "https://example.com/atmotwin-docs",
+        "url": "https://docs.google.com/document/d/1Y8ull0PBBkkRc0IUgysQXNgJQ9VuIaxE3ecp1eRsQrA/edit?usp=sharing",
     },
     {
-        "label": "Publications",
+        "label": "References",
         "emoji": "📄",
         "description": "Methods and validation for the AtmoTwin pipeline.",
-        "url": "https://example.com/atmotwin-publications",
+        "url": "https://life-space-mission.com/",
     },
 ]
 
