@@ -7,8 +7,7 @@ _dashboard_root = Path(__file__).resolve().parent.parent
 if str(_dashboard_root) not in sys.path:
     sys.path.insert(0, str(_dashboard_root))
 
-from config import SCENARIO_PRESETS
-from state import init_state, get_planet_params, load_preset
+from state import init_state, get_planet_params
 from components.spectrum_plot import make_comparison_figure
 from psg.service import generate_comparison_spectra
 from ui import configure_page
@@ -31,6 +30,8 @@ col_actions, col_list = st.columns([1, 2])
 with col_actions:
     if st.button("Save current scenario"):
         current = get_planet_params()
+        n = len(st.session_state.saved_scenarios) + 1
+        current["name"] = f"Scenario {n}"
         st.session_state.saved_scenarios.append(current)
         st.success("Saved current scenario.")
 
@@ -44,23 +45,25 @@ with col_list:
     else:
         st.subheader("Saved scenarios")
         for i, scenario in enumerate(st.session_state.saved_scenarios):
-            with st.expander(f"Scenario {i + 1}"):
-                st.json(scenario)
-
-st.divider()
-
-st.subheader("Preset quick load")
-preset = st.selectbox("Load preset into current state", ["(none)"] + list(SCENARIO_PRESETS.keys()))
-if preset != "(none)":
-    load_preset(preset)
-    st.success(f"Loaded preset: {preset}")
+            if "name" not in scenario:
+                scenario["name"] = f"Scenario {i + 1}"
+            with st.expander(scenario["name"]):
+                new_name = st.text_input(
+                    "Name",
+                    value=scenario["name"],
+                    key=f"rename_{i}",
+                )
+                if new_name != scenario["name"]:
+                    scenario["name"] = new_name
+                    st.rerun()
+                st.json({k: v for k, v in scenario.items() if k != "name"})
 
 # ── Spectrum Comparison ──────────────────────────────────────────────
 st.divider()
 st.subheader("Compare Two Scenarios")
 
 saved = st.session_state.saved_scenarios
-scenario_labels = [f"Scenario {i + 1}" for i in range(len(saved))]
+scenario_labels = [s.get("name", f"Scenario {i + 1}") for i, s in enumerate(saved)]
 
 if len(saved) < 2:
     st.info("Save at least **2 scenarios** to unlock the comparison chart.")
